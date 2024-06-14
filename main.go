@@ -45,3 +45,38 @@ func init() {
 		log.Fatalf("Error unmarshalling translations: %v", err)
 	}
 }
+
+func localizedText(key, botLanguage string) string {
+	if val, ok := translations[botLanguage][key]; ok {
+		return val
+	}
+	log.Printf("No translation available for bot_language code '%s' and key '%s'", botLanguage, key)
+	if val, ok := translations["en"][key]; ok {
+		return val
+	}
+	log.Printf("No English definition found for key '%s' in translations.json", key)
+	return key
+}
+
+func defaultMaxTokens(model string) int {
+	base := 1200
+	if contains(GPT_3_MODELS, model) {
+		return base
+	} else if contains(GPT_4_MODELS, model) {
+		return base * 2
+	} else if contains(GPT_3_16K_MODELS, model) {
+		return base * 4
+	} else if contains(GPT_4_32K_MODELS, model) {
+		return base * 8
+	}
+	return base
+}
+
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
