@@ -1,9 +1,12 @@
-package main
+package helper
 
 import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
+
+	openai "github.com/sashabaranov/go-openai"
 )
 
 var (
@@ -79,4 +82,53 @@ func contains(s []string, str string) bool {
 		}
 	}
 	return false
+}
+
+type OpenAIHelper struct {
+	Client        *openai.Client
+	Config        Config
+	Conversations map[int][]openai.ChatCompletionMessage
+	LastUpdated   map[int]time.Time
+}
+
+func NewOpenAIHelper(config Config) *OpenAIHelper {
+	client := openai.NewClient(config.APIKey)
+	return &OpenAIHelper{
+		Client:        client,
+		Config:        config,
+		Conversations: make(map[int][]openai.ChatCompletionMessage),
+		LastUpdated:   make(map[int]time.Time),
+	}
+}
+
+func (o *OpenAIHelper) ResetChatHistory(chatID int, content string) {
+	if content == "" {
+		content = o.Config.AssistantPrompt
+	}
+	o.Conversations[chatID] = []openai.ChatCompletionMessage{{Role: "system", Content: content}}
+}
+
+func (o *OpenAIHelper) MaxAgeReached(chatID int) bool {
+	lastUpdated, ok := o.LastUpdated[chatID]
+	if !ok {
+		return false
+	}
+	return lastUpdated.Before(time.Now().Add(-time.Duration(o.Config.MaxConversationAgeMinutes) * time.Minute))
+}
+
+func (o *OpenAIHelper) AddToHistory(chatID int, role, content string) {
+	o.Conversations[chatID] = append(o.Conversations[chatID], openai.ChatCompletionMessage{Role: role, Content: content})
+}
+
+func (o *OpenAIHelper) GetConversationStats(chatID int) (int, int) {
+	if _, ok := o.Conversations[chatID]; !ok {
+		o.ResetChatHistory(chatID, "")
+	}
+	return len(o.Conversations[chatID]), o.CountTokens(o.Conversations[chatID])
+}
+
+func (o *OpenAIHelper) CountTokens(messages []openai.ChatCompletionMessage) int {
+	// Implement token counting logic here.
+	// For simplicity, let's assume each message has a fixed token count (this is not accurate).
+	return len(messages) * 5
 }
