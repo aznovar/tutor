@@ -61,15 +61,15 @@ func localizedText(key, botLanguage string) string {
 	return key
 }
 
-func defaultMaxTokens(model string) int {
-	base := 1200
-	if contains(GPT_3_MODELS, model) {
+func (o *OpenAIHelper) MaxModelTokens() int {
+	base := 4096
+	if contains(GPT_3_MODELS, o.Config.Model) {
 		return base
-	} else if contains(GPT_4_MODELS, model) {
-		return base * 2
-	} else if contains(GPT_3_16K_MODELS, model) {
+	} else if contains(GPT_3_16K_MODELS, o.Config.Model) {
 		return base * 4
-	} else if contains(GPT_4_32K_MODELS, model) {
+	} else if contains(GPT_4_MODELS, o.Config.Model) {
+		return base * 2
+	} else if contains(GPT_4_32K_MODELS, o.Config.Model) {
 		return base * 8
 	}
 	return base
@@ -131,4 +131,67 @@ func (o *OpenAIHelper) CountTokens(messages []openai.ChatCompletionMessage) int 
 	// Implement token counting logic here.
 	// For simplicity, let's assume each message has a fixed token count (this is not accurate).
 	return len(messages) * 5
+}
+
+func (o *OpenAIHelper) CommonGetChatResponse(chatID int, query string, stream bool) (*openai.ChatCompletionResponse, error) {
+	botLanguage := o.Config.BotLanguage
+	if _, ok := o.Conversations[chatID]; !ok || o.MaxAgeReached(chatID) {
+		o.ResetChatHistory(chatID, "")
+	}
+
+	o.LastUpdated[chatID] = time.Now()
+	o.AddToHistory(chatID, "user", query)
+
+	tokenCount := o.CountTokens(o.Conversations[chatID])
+	exceededMaxTokens := tokenCount+o.Config.MaxTokens > o.MaxModelTokens()
+	exceededMaxHistorySize := len(o.Conversations[chatID]) > o.Config.MaxHistorySize
+
+	if exceededMaxTokens || exceededMaxHistorySize {
+		log.Printf("Chat history for chat ID %d is too long. Summarising...", chatID)
+		summary, err := o.Summarise(o.Conversations[chatID][:len(o.Conversations[chatID])-1])
+		if err != nil {
+			log.Printf("Error while summarising chat history: %v. Popping elements instead...", err)
+			o.Conversations[chatID] = o.Conversations[chatID][len(o.Conversations[chatID])-o.Config.MaxHistorySize:]
+		} else {
+			o.ResetChatHistory(chatID, summary)
+			o.AddToHistory(chatID, "user", query)
+		}
+	}
+
+	req := openai.ChatCompletionRequest{
+		Model:            o.Config.Model,
+		Messages:         o.Conversations[chatID],
+		MaxTokens:        o.Config.MaxTokens,
+		N:                o.Config.NChoices,
+		Temperature:      o.Config.Temperature,
+		PresencePenalty:  o.Config.PresencePenalty,
+		FrequencyPenalty: o.Config.FrequencyPenalty,
+		Stream:           stream,
+	}
+
+	if stream {
+		stream, err := o.Client.CreateChatCompletionStream(req)
+		if err != nil {
+			return nil, err
+		}
+		defer stream.Close()
+
+		for {
+			response, err := stream.Recv()
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("Stream response: %v", response)
+			if response.Choices[0].FinishReason != "" {
+				break
+			}
+		}
+		return nil, nil
+	} else {
+		response, err := o.Client.CreateChatCompletion(req)
+		if err != nil {
+			return nil, err
+		}
+		return response, nil
+	}
 }
