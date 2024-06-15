@@ -75,6 +75,26 @@ func (o *OpenAIHelper) MaxModelTokens() int {
 	return base
 }
 
+func (o *OpenAIHelper) Summarise(conversation []openai.ChatCompletionMessage) (string, error) {
+	messages := []openai.ChatCompletionMessage{
+		{Role: "assistant", Content: "Summarize this conversation in 700 characters or less"},
+		{Role: "user", Content: string(conversation)},
+	}
+
+	req := openai.ChatCompletionRequest{
+		Model:       o.Config.Model,
+		Messages:    messages,
+		Temperature: 0.4,
+	}
+
+	response, err := o.Client.CreateChatCompletion(req)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Choices[0].Message.Content, nil
+}
+
 func contains(s []string, str string) bool {
 	for _, v := range s {
 		if v == str {
