@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -76,9 +77,15 @@ func (o *OpenAIHelper) MaxModelTokens() int {
 }
 
 func (o *OpenAIHelper) Summarise(conversation []openai.ChatCompletionMessage) (string, error) {
+	// Преобразование массива сообщений в строку
+	conversationContent, err := json.Marshal(conversation)
+	if err != nil {
+		return "", err
+	}
+
 	messages := []openai.ChatCompletionMessage{
 		{Role: "assistant", Content: "Summarize this conversation in 700 characters or less"},
-		{Role: "user", Content: string(conversation)},
+		{Role: "user", Content: string(conversationContent)},
 	}
 
 	req := openai.ChatCompletionRequest{
@@ -87,7 +94,9 @@ func (o *OpenAIHelper) Summarise(conversation []openai.ChatCompletionMessage) (s
 		Temperature: 0.4,
 	}
 
-	response, err := o.Client.CreateChatCompletion(req)
+	// Добавление контекста к вызову CreateChatCompletion
+	ctx := context.Background()
+	response, err := o.Client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +163,7 @@ func (o *OpenAIHelper) CountTokens(messages []openai.ChatCompletionMessage) int 
 }
 
 func (o *OpenAIHelper) CommonGetChatResponse(chatID int, query string, stream bool) (*openai.ChatCompletionResponse, error) {
-	botLanguage := o.Config.BotLanguage
+	//botLanguage := o.Config.BotLanguage
 	if _, ok := o.Conversations[chatID]; !ok || o.MaxAgeReached(chatID) {
 		o.ResetChatHistory(chatID, "")
 	}
@@ -183,14 +192,16 @@ func (o *OpenAIHelper) CommonGetChatResponse(chatID int, query string, stream bo
 		Messages:         o.Conversations[chatID],
 		MaxTokens:        o.Config.MaxTokens,
 		N:                o.Config.NChoices,
-		Temperature:      o.Config.Temperature,
-		PresencePenalty:  o.Config.PresencePenalty,
-		FrequencyPenalty: o.Config.FrequencyPenalty,
+		Temperature:      float32(o.Config.Temperature),
+		PresencePenalty:  float32(o.Config.PresencePenalty),
+		FrequencyPenalty: float32(o.Config.FrequencyPenalty),
 		Stream:           stream,
 	}
 
+	ctx := context.Background()
+
 	if stream {
-		stream, err := o.Client.CreateChatCompletionStream(req)
+		stream, err := o.Client.CreateChatCompletionStream(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -208,10 +219,10 @@ func (o *OpenAIHelper) CommonGetChatResponse(chatID int, query string, stream bo
 		}
 		return nil, nil
 	} else {
-		response, err := o.Client.CreateChatCompletion(req)
+		response, err := o.Client.CreateChatCompletion(ctx, req)
 		if err != nil {
 			return nil, err
 		}
-		return response, nil
+		return &response, nil
 	}
 }
