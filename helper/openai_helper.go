@@ -15,6 +15,7 @@ import (
 	_ "github.com/pkoukk/tiktoken-go"
 
 	openai "github.com/sashabaranov/go-openai"
+	conf "tutor/config"
 )
 
 var (
@@ -24,23 +25,6 @@ var (
 	GPT_4_32K_MODELS = []string{"gpt-4-32k", "gpt-4-32k-0314", "gpt-4-32k-0613"}
 	GPT_ALL_MODELS   = append(GPT_3_MODELS, append(GPT_3_16K_MODELS, append(GPT_4_MODELS, GPT_4_32K_MODELS...)...)...)
 )
-
-type Config struct {
-	APIKey                    string
-	Proxy                     string
-	Model                     string
-	MaxTokens                 int
-	NChoices                  int
-	Temperature               float64
-	PresencePenalty           float64
-	FrequencyPenalty          float64
-	MaxHistorySize            int
-	MaxConversationAgeMinutes int
-	ShowUsage                 bool
-	BotLanguage               string
-	AssistantPrompt           string
-	ImageSize                 string
-}
 
 var translations map[string]map[string]string
 
@@ -122,12 +106,12 @@ func contains(s []string, str string) bool {
 
 type OpenAIHelper struct {
 	Client        *openai.Client
-	Config        Config
+	Config        conf.Config
 	Conversations map[int][]openai.ChatCompletionMessage
 	LastUpdated   map[int]time.Time
 }
 
-func NewOpenAIHelper(config Config) *OpenAIHelper {
+func NewOpenAIHelper(config conf.Config) *OpenAIHelper {
 	client := openai.NewClient(config.APIKey)
 	return &OpenAIHelper{
 		Client:        client,
