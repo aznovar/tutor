@@ -21,4 +21,5 @@ type Config struct {
 	MaxConversationAgeMinutes int
 	AssistantPrompt           string
 	ImageSize                 string
+	LogsDir                   string
 }

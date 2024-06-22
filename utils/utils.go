@@ -235,12 +235,12 @@ func GetRemainingBudget(cfg conf.Config, usage map[string]*usagetracker.UsageTra
 	}
 
 	if _, ok := usage[userID]; !ok {
-		usage[userID] = usagetracker.NewUsageTracker(update.Message.From.ID, update.Message.From.UserName)
+		usage[userID] = usagetracker.NewUsageTracker(update.Message.From.ID, update.Message.From.UserName, "usage_logs")
 	}
 
 	userBudget := GetUserBudget(cfg, update.Message.From.ID)
 	budgetPeriod := cfg.BudgetPeriod
-	cost := usage[userID].GetCurrentCost(budgetCostMap[budgetPeriod])
+	cost := usage[userID].GetCurrentCost()[budgetCostMap[budgetPeriod]]
 
 	return userBudget - cost
 }
@@ -260,8 +260,10 @@ func IsWithinBudget(cfg conf.Config, usage map[string]*usagetracker.UsageTracker
 
 func AddChatRequestToUsageTracker(usage map[string]*usagetracker.UsageTracker, cfg conf.Config, userID int, usedTokens int) {
 	userIDStr := fmt.Sprintf("%d", userID)
+	logsDir := cfg.LogsDir // Убедитесь, что logsDir определен в структуре conf.Config
+
 	if _, ok := usage[userIDStr]; !ok {
-		usage[userIDStr] = usagetracker.NewUsageTracker(userID, fmt.Sprintf("User %d", userID))
+		usage[userIDStr] = usagetracker.NewUsageTracker(userID, fmt.Sprintf("User %d", userID), logsDir)
 	}
 
 	userTracker := usage[userIDStr]
@@ -269,7 +271,7 @@ func AddChatRequestToUsageTracker(usage map[string]*usagetracker.UsageTracker, c
 
 	if !strings.Contains(cfg.AllowedUserIDs, userIDStr) {
 		if _, ok := usage["guests"]; !ok {
-			usage["guests"] = usagetracker.NewUsageTracker(-1, "Guests")
+			usage["guests"] = usagetracker.NewUsageTracker(-1, "Guests", logsDir)
 		}
 		guestTracker := usage["guests"]
 		guestTracker.AddChatTokens(usedTokens, cfg.TokenPrice)
